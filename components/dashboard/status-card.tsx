@@ -1,0 +1,154 @@
+'use client';
+
+import React from 'react';
+import { Activity, RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Zap, Globe, Cpu } from 'lucide-react';
+import { WhatsAppStatusResponse } from '@/lib/whatsapp/types';
+
+interface StatusCardProps {
+  status: WhatsAppStatusResponse | null;
+  isLoading: boolean;
+  onRefresh: () => void;
+}
+
+export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
+  const connectionState = status?.status || 'unreachable';
+  const endpoint = status?.endpoint || 'Loading configuration...';
+  const message = status?.message || 'Connecting to WhatsApp service...';
+  const details = status?.details;
+
+  // Determine styles and icons based on connection state
+  const getStatusStyles = () => {
+    switch (connectionState) {
+      case 'connected':
+        return {
+          bgColor: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+          glow: 'shadow-emerald-500/20',
+          dot: 'bg-emerald-400 animate-pulse',
+          icon: <CheckCircle2 className="w-5 h-5" />,
+          label: 'Active & Connected',
+        };
+      case 'waking_up':
+        return {
+          bgColor: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+          badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+          glow: 'shadow-amber-500/20',
+          dot: 'bg-amber-400 animate-bounce',
+          icon: <Activity className="w-5 h-5 animate-pulse" />,
+          label: 'Waking Up (Render Cold Start)',
+        };
+      case 'disabled':
+        return {
+          bgColor: 'bg-zinc-500/10 border-zinc-500/30 text-zinc-400',
+          badgeColor: 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30',
+          glow: 'shadow-zinc-500/5',
+          dot: 'bg-zinc-400',
+          icon: <ShieldAlert className="w-5 h-5" />,
+          label: 'Integration Disabled',
+        };
+      case 'unreachable':
+      default:
+        return {
+          bgColor: 'bg-rose-500/10 border-rose-500/30 text-rose-400',
+          badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+          glow: 'shadow-rose-500/20',
+          dot: 'bg-rose-400',
+          icon: <AlertTriangle className="w-5 h-5" />,
+          label: 'Unreachable / Sleeping',
+        };
+    }
+  };
+
+  const style = getStatusStyles();
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border backdrop-blur-xl transition-all duration-500 shadow-lg ${style.bgColor} ${style.glow}`}>
+      {/* Decorative Background Glows */}
+      <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-current opacity-10 blur-3xl" />
+      <div className="absolute -bottom-24 -left-24 w-48 h-48 rounded-full bg-current opacity-5 blur-3xl" />
+
+      <div className="p-6 md:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <span className="text-xs uppercase tracking-wider font-semibold opacity-70">
+              WhatsApp Integration Status
+            </span>
+            <div className="flex items-center gap-3 mt-1">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border ${style.badgeColor}`}>
+                <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+                {style.label}
+              </span>
+            </div>
+          </div>
+          
+          <button
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="flex items-center justify-center gap-2 self-start md:self-auto px-4 py-2 text-sm font-semibold rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white border border-white/10 backdrop-blur-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group shadow-sm hover:scale-[1.02]"
+          >
+            <RefreshCw className={`w-4 h-4 transition-transform duration-700 ${isLoading ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+            {isLoading ? 'Checking...' : 'Check Status'}
+          </button>
+        </div>
+
+        {/* Message Banner */}
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-white/5 border border-white/5 mb-6 text-sm text-zinc-200">
+          <div className="mt-0.5">{style.icon}</div>
+          <p className="leading-relaxed flex-1">{message}</p>
+        </div>
+
+        {/* Technical Specs Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          {/* Endpoint display */}
+          <div className="flex items-center gap-3 p-3.5 rounded-xl bg-black/20 border border-white/5">
+            <Globe className="w-4 h-4 text-sky-400 shrink-0" />
+            <div className="overflow-hidden">
+              <div className="font-semibold text-zinc-400">Render Base URL</div>
+              <div className="text-zinc-200 truncate mt-0.5" title={endpoint}>{endpoint}</div>
+            </div>
+          </div>
+
+          {/* Response Latency / Uptime */}
+          <div className="flex items-center gap-3 p-3.5 rounded-xl bg-black/20 border border-white/5">
+            <Zap className="w-4 h-4 text-yellow-400 shrink-0" />
+            <div>
+              <div className="font-semibold text-zinc-400">Response / Uptime</div>
+              <div className="text-zinc-200 mt-0.5">
+                {connectionState === 'connected' && details?.uptime 
+                  ? `${details.uptime}ms` 
+                  : connectionState === 'waking_up' 
+                  ? 'Warming up...' 
+                  : 'N/A'}
+              </div>
+            </div>
+          </div>
+
+          {/* Platform Platform / Version */}
+          <div className="flex items-center gap-3 p-3.5 rounded-xl bg-black/20 border border-white/5">
+            <Cpu className="w-4 h-4 text-purple-400 shrink-0" />
+            <div>
+              <div className="font-semibold text-zinc-400">Remote API Engine</div>
+              <div className="text-zinc-200 mt-0.5">
+                {connectionState === 'connected' && details?.version 
+                  ? details.version 
+                  : 'Open WA EASY API'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Rent free-tier helper text */}
+        {connectionState === 'waking_up' && (
+          <div className="mt-5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 leading-normal animate-pulse">
+            <strong>Pro Tip:</strong> Render Free web services spin down after 15 minutes of inactivity. Pinging the service automatically initiates the boot cycle, which typically takes 50 to 90 seconds. Keep clicking refresh until the status turns green.
+          </div>
+        )}
+        {connectionState === 'unreachable' && (
+          <div className="mt-5 p-3 rounded-lg bg-zinc-500/5 border border-white/5 text-xs text-zinc-300 leading-normal">
+            <strong>Troubleshooting:</strong> If the service has spun down, clicking "Check Status" will wake it up. If it remains unreachable after 2 minutes, check that your Render environment is running, verify the API keys, and confirm the `OPENWA_BASE_URL` is set correctly.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
