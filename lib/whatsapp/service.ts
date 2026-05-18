@@ -193,16 +193,17 @@ export async function sendWhatsAppMessage(
   }
 
   const formattedTarget = formatWhatsAppTarget(target);
-  const sendUrl = `${config.baseUrl}/api/sendText`;
+  const sendUrl = `${config.baseUrl}/sendText`;
 
   console.log(`[WhatsApp Service] Sending message to ${formattedTarget} via ${sendUrl}`);
 
   // Construct a super-payload to cover all variants of the EASY API:
   // - 'to' or 'chatId' for recipient
-  // - 'content' or 'message' for the message text
+  // - 'text', 'content', or 'message' for the message text
   const payload = {
     to: formattedTarget,
     chatId: formattedTarget,
+    text: messageText,
     content: messageText,
     message: messageText,
   };
@@ -218,6 +219,7 @@ export async function sendWhatsAppMessage(
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${config.apiKey}`,
           'x-api-key': config.apiKey,
+          'api_key': config.apiKey,
         },
         body: JSON.stringify(payload),
       },
