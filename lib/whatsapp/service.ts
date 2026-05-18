@@ -64,113 +64,104 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
 
   const endpoint = config.baseUrl;
   
-  // We'll try to reach a common endpoint.
-  // Standard Open WA EASY API has GET /ping, GET /api/ping, or GET /
-  const pingUrl = `${endpoint}/ping`;
-  const fallbackUrl = `${endpoint}/`;
+  // Try several candidate paths in order of preference to verify the server is alive
+  const candidatePaths = [
+    '/api-docs/',
+    '/',
+    '/ping'
+  ];
 
-  console.log(`[WhatsApp Service] Pinging Open WA service at: ${pingUrl}`);
+  console.log(`[WhatsApp Service] Initiating health check on Open WA service at: ${endpoint}`);
 
   const startTime = Date.now();
-  try {
-    // We use a relatively short timeout (5 seconds) to check health.
-    // If it takes longer, it's likely a cold start on Render free tier.
-    const response = await fetchWithTimeout(
-      pingUrl,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${config.apiKey}`,
-          'x-api-key': config.apiKey,
+  let lastError: any = null;
+  let lastResponseStatus: number | null = null;
+
+  for (const path of candidatePaths) {
+    const testUrl = `${endpoint}${path}`;
+    try {
+      console.log(`[WhatsApp Service] Pinging path: ${path}`);
+      const response = await fetchWithTimeout(
+        testUrl,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${config.apiKey}`,
+            'x-api-key': config.apiKey,
+          },
         },
-      },
-      5000
-    );
+        5000 // 5 seconds timeout per request
+      );
 
-    const duration = Date.now() - startTime;
-    console.log(`[WhatsApp Service] Ping succeeded in ${duration}ms with status ${response.status}`);
+      const duration = Date.now() - startTime;
+      console.log(`[WhatsApp Service] Ping to ${path} completed in ${duration}ms with status ${response.status}`);
 
-    if (response.ok || response.status === 401 || response.status === 403) {
+      // 200 OK means active and healthy.
       // 401/403 means the server is awake and actively rejecting unauthorized requests, which is "reachable"!
-      // 200 means active and healthy.
-      let extraInfo: any = {};
-      try {
-        const body = await response.json();
-        extraInfo = body.details || body || {};
-      } catch {
-        // No json body, that's fine
+      if (response.ok || response.status === 401 || response.status === 403) {
+        let extraInfo: any = {};
+        try {
+          const body = await response.json();
+          extraInfo = body.details || body || {};
+        } catch {
+          // No json body or not JSON, that's fine (e.g. HTML from /api-docs/)
+        }
+
+        return {
+          status: 'connected',
+          message: 'Open WA service is online and reachable.',
+          endpoint,
+          details: {
+            uptime: extraInfo.uptime || duration,
+            version: extraInfo.version || 'EASY API',
+            platform: 'Render',
+            config: getSafeConfigSummary(),
+          },
+        };
       }
-
-      return {
-        status: 'connected',
-        message: 'Open WA service is online and reachable.',
-        endpoint,
-        details: {
-          uptime: extraInfo.uptime || duration,
-          version: extraInfo.version || 'EASY API',
-          platform: 'Render',
-          config: getSafeConfigSummary(),
-        },
-      };
+      
+      lastResponseStatus = response.status;
+    } catch (err: any) {
+      console.warn(`[WhatsApp Service] Ping to ${path} failed:`, err.message || err);
+      lastError = err;
+      
+      // If we timed out (AbortError), it's likely a cold start on Render's free tier.
+      // We immediately return 'waking_up' to avoid waiting through other candidates.
+      if (err.name === 'AbortError') {
+        return {
+          status: 'waking_up',
+          message: 'Open WA service is taking longer than 5 seconds to respond. It is likely waking up from Render free tier sleep.',
+          endpoint,
+          details: { 
+            error: 'Timeout waiting for Render instance',
+            config: getSafeConfigSummary()
+          },
+        };
+      }
     }
+  }
 
+  // If we got here, none of our candidate pings resulted in 200, 401, or 403.
+  const duration = Date.now() - startTime;
+  
+  if (lastResponseStatus !== null) {
     return {
       status: 'unreachable',
-      message: `Service returned unexpected HTTP status: ${response.status}`,
+      message: `Service returned unexpected HTTP status: ${lastResponseStatus}`,
       endpoint,
       details: { config: getSafeConfigSummary() }
     };
-
-  } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(`[WhatsApp Service] Status check failed after ${duration}ms:`, error);
-
-    // Differentiate between timeout (cold start) and connection refused (down)
-    if (error.name === 'AbortError') {
-      return {
-        status: 'waking_up',
-        message: 'Open WA service is taking longer than 5 seconds to respond. It is likely waking up from Render free tier sleep.',
-        endpoint,
-        details: { 
-          error: 'Timeout waiting for Render instance',
-          config: getSafeConfigSummary()
-        },
-      };
-    }
-
-    // Attempt a fallback check on the root path in case /ping is not defined
-    try {
-      console.log(`[WhatsApp Service] Trying fallback health check on root: ${fallbackUrl}`);
-      const fallbackResponse = await fetchWithTimeout(
-        fallbackUrl,
-        {
-          method: 'GET',
-        },
-        3000
-      );
-
-      if (fallbackResponse.status < 500) {
-        return {
-          status: 'connected',
-          message: 'Open WA service root is reachable.',
-          endpoint,
-          details: { config: getSafeConfigSummary() }
-        };
-      }
-    } catch (fallbackError) {
-      console.error('[WhatsApp Service] Fallback health check also failed:', fallbackError);
-    }
-
-    return {
-      status: 'unreachable',
-      message: `Open WA service is unreachable. Error: ${error.message || 'Connection failed'}`,
-      endpoint,
-      details: { 
-        error: error.message,
-        config: getSafeConfigSummary()
-      },
-    };
   }
+
+  return {
+    status: 'unreachable',
+    message: `Open WA service is unreachable. Error: ${lastError?.message || 'Connection failed'}`,
+    endpoint,
+    details: { 
+      error: lastError?.message,
+      config: getSafeConfigSummary()
+    },
+  };
 }
 
 /**
