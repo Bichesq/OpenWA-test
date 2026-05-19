@@ -11,7 +11,7 @@ This project is built using a decoupled, production-minded structure:
 ### 🛡️ Why HTTP was chosen over SocketClient for Vercel
 Vercel's Serverless environment is ephemeral—functions spin up to serve a request and sleep immediately after. Maintaining a stateful WebSocket connection (`SocketClient`) in a serverless environment is an anti-pattern and highly unreliable, leading to dropped connection frames and thread freezing.
 
-Instead, our Next.js Route Handlers call the Render Open WA instance over **stateless HTTP endpoints** (e.g. `POST /api/sendText`). This fits Vercel perfectly, keeps execution memory extremely thin, prevents socket disconnections, and allows graceful handling of Render free-tier wake-up cycles.
+Instead, our Next.js Route Handlers call the Render Open WA instance over **stateless HTTP endpoints** (e.g. `POST /sendText`). This fits Vercel perfectly, keeps execution memory extremely thin, prevents socket disconnections, and allows graceful handling of Render free-tier wake-up cycles.
 
 ---
 

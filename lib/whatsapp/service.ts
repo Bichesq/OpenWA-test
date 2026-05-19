@@ -193,7 +193,7 @@ export async function sendWhatsAppMessage(
   }
 
   const formattedTarget = formatWhatsAppTarget(target);
-  const sendUrl = `${config.baseUrl}/api/sendText`;
+  const sendUrl = `${config.baseUrl}/sendText`;
 
   console.log(`[WhatsApp Service] Sending message to ${formattedTarget} via ${sendUrl}`);
 
