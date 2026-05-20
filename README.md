@@ -66,6 +66,20 @@ Click the **Environment** tab in your Render service and add:
 * `PORT`: `8080` (Render defaults to routing here)
 * `API_KEY`: `your_custom_secret_key` (This is the authorization key the Next.js app will use)
 
+### Step 3.1: Local validation (recommended)
+Before deploying to Render, validate the new `openwa-service` locally:
+* `cd openwa-service`
+* `npm install`
+* `npm run build`
+* `PORT=8080 API_KEY=testkey npm start`
+
+Then open another terminal and ensure the service responds:
+```bash
+curl http://localhost:8080/ping
+curl http://localhost:8080/status
+```
+If the local service starts successfully, the logs should print a QR code on first run and later restore the session from the mounted session directory.
+
 ### Step 3.5: Verify the Render service is the Open WA engine
 Before you copy the service URL into `OPENWA_BASE_URL`, verify the deployed Render service is actually running the Open WA container and not the frontend app:
 
