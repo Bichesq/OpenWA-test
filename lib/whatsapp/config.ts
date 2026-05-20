@@ -2,7 +2,17 @@ import { WhatsAppConfig } from './types';
 
 export function getWhatsAppConfig(): WhatsAppConfig {
   const enabled = process.env.WHATSAPP_ENABLED === 'true';
-  const baseUrl = process.env.OPENWA_BASE_URL || '';
+  const rawBaseUrl = process.env.OPENWA_BASE_URL || '';
+  // Normalize base URL: strip trailing slash and any path/query/hash to leave only the origin
+  let baseUrl = rawBaseUrl.replace(/\/$/, '');
+  try {
+    if (baseUrl) {
+      const parsed = new URL(baseUrl);
+      baseUrl = parsed.origin; // ensures no extra path segments
+    }
+  } catch {
+    // Keep original (possibly invalid) value; validation will catch it later
+  }
   const apiKey = process.env.OPENWA_API_KEY || '';
   const myNumber = process.env.WHATSAPP_MY_NUMBER || '';
   const updatesGroupId = process.env.WHATSAPP_UPDATES_GROUP_ID || '';

@@ -96,17 +96,38 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
       const duration = Date.now() - startTime;
       console.log(`[WhatsApp Service] Ping to ${path} completed in ${duration}ms with status ${response.status}`);
 
-      // 200 OK means active and healthy.
-      // 401/403 means the server is awake and actively rejecting unauthorized requests, which is "reachable"!
-      if (response.ok || response.status === 401 || response.status === 403) {
-        let extraInfo: any = {};
-        try {
-          const body = await response.json();
-          extraInfo = body.details || body || {};
-        } catch {
-          // No json body or not JSON, that's fine (e.g. HTML from /api-docs/)
-        }
+      const contentType = response.headers.get('content-type') || '';
+      let extraInfo: any = {};
+      let isValidOpenWA = false;
 
+      if (response.ok || response.status === 401 || response.status === 403) {
+        const bodyText = await response.text().catch(() => '');
+
+        if (path === '/') {
+          const isHtml = contentType.includes('text/html') || /<html/i.test(bodyText);
+          if (isHtml) {
+            console.warn('[WhatsApp Service] Root path returned HTML. This is likely not the Open WA service root.');
+          } else {
+            isValidOpenWA = true;
+            try {
+              const parsed = JSON.parse(bodyText);
+              extraInfo = parsed.details || parsed || {};
+            } catch {
+              extraInfo = { body: bodyText };
+            }
+          }
+        } else {
+          try {
+            const parsed = JSON.parse(bodyText);
+            extraInfo = parsed.details || parsed || {};
+          } catch {
+            // Non-JSON body is still acceptable for /api-docs/ or /ping if the status is healthy.
+          }
+          isValidOpenWA = true;
+        }
+      }
+
+      if (isValidOpenWA) {
         return {
           status: 'connected',
           message: 'Open WA service is online and reachable.',
@@ -119,8 +140,12 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
           },
         };
       }
-      
-      lastResponseStatus = response.status;
+
+      if (response.ok || response.status === 401 || response.status === 403) {
+        lastResponseStatus = response.status;
+      } else {
+        lastResponseStatus = response.status;
+      }
     } catch (err: any) {
       console.warn(`[WhatsApp Service] Ping to ${path} failed:`, err.message || err);
       lastError = err;
@@ -238,9 +263,16 @@ export async function sendWhatsAppMessage(
       };
     }
 
+    // Provide a clearer diagnostic for 404 Not Found responses which commonly indicate
+    // a mismatched `OPENWA_BASE_URL` (e.g. it contains an extra path segment).
+    let errorMessage = responseBody.error || responseBody.message || `API error: HTTP ${response.status}`;
+    if (response.status === 404) {
+      errorMessage = `Not Found (404) when POSTing to ${sendUrl}. Check OPENWA_BASE_URL points to the Open WA service root (no extra path) and that the service exposes POST /sendText.`;
+    }
+
     return {
       success: false,
-      error: responseBody.error || responseBody.message || `API error: HTTP ${response.status}`,
+      error: errorMessage,
       timestamp,
       details: responseBody,
     };

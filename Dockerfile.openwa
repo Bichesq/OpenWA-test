@@ -25,9 +25,21 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 WORKDIR /app
 
+# Copy openwa-service files
+COPY openwa-service/ /app/
+
+# Install dependencies
+RUN npm install --production
+
+# Build TypeScript
+RUN npm run build
+
 # Expose default API port
 EXPOSE 8080
 
-# Expose environment variables to CLI
-# Render automatically populates PORT, we require API_KEY in Render config.
-CMD npx @open-wa/wa-automate --port ${PORT:-8080} --key ${API_KEY} --no-sandbox --use-chrome
+# Set environment variables (Render provides PORT and API_KEY)
+ENV NODE_ENV=production
+ENV SESSION_DATA_PATH=/app/sessions
+
+# Run the service
+CMD ["npm", "start"]
