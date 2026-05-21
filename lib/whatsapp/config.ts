@@ -6,7 +6,7 @@ export function getWhatsAppConfig(): WhatsAppConfig {
   
   // Resolve session data path: defaults to a local 'sessions' directory in root
   const rawSessionPath = process.env.WHATSAPP_SESSION_PATH || './sessions';
-  const sessionDataPath = path.resolve(process.cwd(), rawSessionPath);
+  const sessionDataPath = path.resolve(/*turbopackIgnore: true*/ process.cwd(), rawSessionPath);
 
   const headless = process.env.WHATSAPP_HEADLESS !== 'false';
   const myNumber = process.env.WHATSAPP_MY_NUMBER || '';
