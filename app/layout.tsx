@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "WhatsApp Action Test Dashboard",
-  description: "A secure, robust dashboard to manually trigger and test WhatsApp integration scenarios from Vercel to Node Backend.",
+  description: "A secure, robust dashboard to manually trigger and test embedded WhatsApp integration scenarios on Render.",
 };
 
 export default function RootLayout({

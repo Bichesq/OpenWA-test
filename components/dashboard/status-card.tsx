@@ -128,7 +128,7 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
           <div className="flex items-center gap-3 p-3.5 rounded-xl bg-black/20 border border-white/5">
             <Globe className="w-4 h-4 text-sky-400 shrink-0" />
             <div className="overflow-hidden">
-              <div className="font-semibold text-zinc-400">Node Backend URL</div>
+              <div className="font-semibold text-zinc-400">API Runtime Location</div>
               <div className="text-zinc-200 truncate mt-0.5" title={endpoint}>{endpoint}</div>
             </div>
           </div>

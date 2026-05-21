@@ -138,7 +138,7 @@ export default function Dashboard() {
               <MessageSquare className="w-6 h-6" />
             </div>
             <span className="text-sm font-bold text-indigo-400 uppercase tracking-widest">
-              Open WA Easy API Dashboard
+              Embedded Open WA Dashboard
             </span>
           </div>
 
@@ -147,8 +147,8 @@ export default function Dashboard() {
           </h1>
 
           <p className="text-zinc-400 text-base md:text-lg max-w-3xl leading-relaxed">
-            This dashboard pings and triggers WhatsApp actions in your separate <strong>Open WA EASY API</strong> backend service running the embedded runtime. 
-            All environment credentials and target configurations are securely processed server-side in Next.js route handlers.
+            This dashboard manages and simulates WhatsApp triggers using an embedded <strong>@open-wa/wa-automate</strong> engine running in-process.
+            All message payloads and routing are securely executed server-side within the Next.js process on Render.
           </p>
 
           {/* Architecture Explainer Grid */}
@@ -156,24 +156,24 @@ export default function Dashboard() {
             <div>
               <h2 className="flex items-center gap-2 font-bold text-zinc-200 text-sm uppercase tracking-wider mb-2">
                 <Layers className="w-4 h-4 text-indigo-400" />
-                Vercel Dashboard Layer (UI)
+                Unified Web UI (Dashboard)
               </h2>
               <ul className="space-y-2 text-sm text-zinc-400 list-disc list-inside">
-                <li>Serverless Route Handlers map scenarios to targets.</li>
-                <li>Masks raw phone numbers and group IDs before displaying.</li>
-                <li>Standard stateless HTTP fetch prevents socket drop-outs on Vercel.</li>
+                <li>Server-side handlers map scenarios directly to WhatsApp dispatchers.</li>
+                <li>Exposes masked config states (like phone numbers) to the client UI.</li>
+                <li>Monitors execution logs and session QR codes in real-time.</li>
               </ul>
             </div>
             
             <div className="border-t md:border-t-0 md:border-l border-white/5 pt-4 md:pt-0 md:pl-6">
               <h2 className="flex items-center gap-2 font-bold text-zinc-200 text-sm uppercase tracking-wider mb-2">
                 <Terminal className="w-4 h-4 text-emerald-400" />
-                Node Backend Layer (Engine)
+                Embedded Engine (Puppeteer)
               </h2>
               <ul className="space-y-2 text-sm text-zinc-400 list-disc list-inside">
-                <li>Hosts the actual Puppeteer browser and WhatsApp runtime.</li>
-                <li>Handles internal WhatsApp automate connection states.</li>
-                <li>Exposes HTTP API endpoints for clean triggers and status monitoring.</li>
+                <li>Spawns a long-running, in-process Chromium instance for automation.</li>
+                <li>Keeps a persistent session volume on Render to avoid re-auth.</li>
+                <li>Listens to inbound events (e.g. automatic "ping-pong" responder).</li>
               </ul>
             </div>
           </div>
