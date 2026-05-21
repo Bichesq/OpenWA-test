@@ -1,17 +1,23 @@
 # WhatsApp Action Testing Dashboard
 
-A modern Next.js dashboard designed to trigger manual scenario test messages via a remote **Open WA EASY API** instance.
+A modern Next.js dashboard with a single persistent Node.js/TypeScript backend running an **embedded WhatsApp runtime** powered by `@open-wa/wa-automate`.
+
+---
 
 ## 🏗️ Architecture Design & Decisions
 
-This project is built using a decoupled, production-minded structure:
-1. **Next.js Dashboard UI (Vercel):** A highly aesthetic glassmorphic dark UI that manages user interactions.
-2. **Open WA EASY API Service (Node Backend):** A local or self-hosted persistent Node backend running the embedded runtime with a Puppeteer browser hosting the actual WhatsApp connection.
+This project is built using a consolidated, single-process architecture:
+1. **Embedded Runtime:** The WhatsApp automation engine and the Puppeteer/headless browser run directly in-memory within the Next.js Node.js server process.
+2. **In-Memory Communication:** Message sending and status tracking occur via direct function calls, eliminating intermediate HTTP hops, API gateways, or Webhook delays.
+3. **Development Hot-Reload Protection:** Uses a `globalThis` singleton guard to prevent Next.js developmental compile events from spawning multiple browser instances and leaking system memory.
 
-### 🛡️ Why HTTP was chosen over SocketClient for Vercel
-Vercel's Serverless environment is ephemeral—functions spin up to serve a request and sleep immediately after. Maintaining a stateful WebSocket connection (`SocketClient`) in a serverless environment is an anti-pattern and highly unreliable, leading to dropped connection frames and thread freezing.
+### 🛡️ Why Persistent Hosting is Required (Instead of Vercel)
+Vercel is a serverless platform where functions are ephemeral, short-lived, and lack persistent storage. An embedded runtime requires:
+* Spawning a long-running, persistent headless Chromium process.
+* Direct access to system libraries (`libxss1`, etc.) to run Chrome.
+* Persistent storage volumes to save session credential JSON files so that QR codes do not need to be scanned on every boot.
 
-Instead, our Next.js Route Handlers call the Node Backend Open WA instance over **stateless HTTP endpoints** (e.g. `POST /sendText`). This fits Vercel perfectly, keeps execution memory extremely thin, prevents socket disconnections, and allows graceful handling of backend initialization states.
+Therefore, this application **must** be deployed on a persistent container or VM host (such as Render, Railway, Fly.io, or any VPS) using the provided root [Dockerfile](file:///e:/OpenWA-test/Dockerfile).
 
 ---
 
@@ -20,122 +26,147 @@ Instead, our Next.js Route Handlers call the Node Backend Open WA instance over 
 ```
 ├── app/
 │   ├── api/
-│   │   ├── whatsapp/
-│   │   │   ├── send/
-│   │   │   │   └── route.ts        # Serverless route mapping scenarios to targets
-│   │   │   └── status/
-│   │   │       └── route.ts        # Health check router with forced dynamic check
-│   │   ├── layout.tsx
-│   │   ├── globals.css
-│   │   └── page.tsx                # Glassmorphic client-side dashboard UI
+│   │   └── whatsapp/
+│   │       ├── send/
+│   │       │   └── route.ts        # Route handler for direct in-process message dispatching
+│   │       └── status/
+│   │           └── route.ts        # Health check & lazy-bootstrap trigger endpoint
+│   ├── layout.tsx
+│   ├── globals.css
+│   └── page.tsx                    # Glassmorphic client-side dashboard UI
 ├── components/
 │   └── dashboard/
-│       ├── action-card.tsx         # Trigger card with loading & feedback logic
-│       └── status-card.tsx         # Connection status & Node Backend specs monitor
+│       ├── action-card.tsx         # Scenario trigger card with loading & feedback logic
+│       └── status-card.tsx         # Connection status & embedded engine specs monitor
 ├── lib/
 │   └── whatsapp/
-│       ├── config.ts               # Env loading, validation, and string masking
-│       ├── service.ts              # Fetch wrapper with timeouts & wake-up helpers
-│       ├── templates.ts            # Message payload compiler with dynamic timestamp
-│       └── types.ts                # TypeScript interfaces & status states
+│       ├── bootstrap.ts            # Client lifecycle, event attachment & process signal hooks
+│       ├── client.ts               # Core singleton wrapper with globalThis guard
+│       ├── config.ts               # Env loading, config parsing & string masking
+│       ├── handlers.ts             # Inbound text message responder & outbound dispatcher
+│       ├── session-store.ts        # Session persistence config
+│       ├── templates.ts            # Message templates with dynamic UTC timestamps
+│       └── types.ts                # TypeScript interfaces and Status unions
 ├── .env.example                    # Sample configurations for developers
-├── Dockerfile.openwa               # Render-ready Puppeteer container
-└── README.md                       # Comprehensive deployment & setup playbook
+├── Dockerfile                      # Production multi-stage build (Next.js + Puppeteer-Chrome)
+└── README.md                       # Complete configuration & execution guide
 ```
 
 ---
 
-## 🚀 Running the Open WA EASY API (Node Backend WhatsApp Layer)
+## 🚀 Local Setup & Execution
 
-The Node backend is a standalone Express service located in the `openwa-service` directory. It wraps `@open-wa/wa-automate` and Puppeteer/headless Chrome to execute the embedded runtime.
-
-### Local Setup & Execution
-1. Navigate to the backend directory:
-   ```bash
-   cd openwa-service
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Build the project:
-   ```bash
-   npm run build
-   ```
-4. Run the service (set your preferred `PORT` and `API_KEY`):
-   ```bash
-   PORT=8080 API_KEY=your_secure_api_key npm start
-   ```
-   *(Alternatively, run in development mode with `npm run dev`)*
-
-### Verify the Node Backend is Running
-Open another terminal or browser tab and check:
+### 1. Configure Environment Variables
+Copy `.env.example` into a new file `.env` at the root directory:
 ```bash
-curl http://localhost:8080/ping
-curl http://localhost:8080/status
+cp .env.example .env
 ```
 
-Expected behavior:
-* `/ping` returns a simple `{ "status": "ok" }` or similar backend status.
-* `/status` returns the connection state of the WhatsApp client (e.g. `'authenticating'`, `'connected'`, `'unreachable'`).
+Edit the `.env` file with your config:
+```ini
+WHATSAPP_ENABLED=true
+WHATSAPP_SESSION_PATH=./sessions
+WHATSAPP_HEADLESS=true
 
-### Scan the QR Code to Bootstrap WhatsApp
-1. On its first run, the Node backend launches Puppeteer and attempts to authenticate with WhatsApp.
-2. Look at the terminal stdout where you started `openwa-service`. An ASCII QR Code will be printed directly in the console.
-3. Open WhatsApp on your phone -> Go to **Linked Devices** -> **Link a Device** -> Scan the ASCII QR code from your terminal.
-4. Once scanned, the session credentials will be saved in the `openwa-service/session` folder, keeping you logged in for future server restarts.
+# Test Target Numbers (Numbers only, country code first, e.g., 447700900077)
+WHATSAPP_MY_NUMBER=your_personal_phone_number
+WHATSAPP_UPDATES_GROUP_ID=your_target_group_chat_id
+WHATSAPP_TEST_CLIENT_ID=your_test_client_phone_number
+```
 
-*(Note: Docker configuration is available via `Dockerfile.openwa` for production containerization.)*
+### 2. Install Dependencies
+Install all package dependencies in the workspace root:
+```bash
+npm install --legacy-peer-deps
+```
 
----
+### 3. Run in Development Mode
+Start the Next.js local development server:
+```bash
+npm run dev
+```
 
-## ⚡ Deploying the Next.js Dashboard to Vercel (UI Layer)
-
-Vercel is optimized to host the Next.js dashboard completely serverless.
-
-### Step 1: Initialize Vercel Project
-1. Log into [Vercel](https://vercel.com).
-2. Click **Add New** -> **Project**.
-3. Import your Git repository.
-
-### Step 2: Configure Environment Variables
-Under **Environment Variables**, add the following keys:
-| Environment Variable | Example Value | Description |
-| :--- | :--- | :--- |
-| `WHATSAPP_ENABLED` | `true` | Enables/Disables dashboard actions |
-| `OPENWA_BASE_URL` | `http://localhost:8080` | Exclude trailing slash. Must point to the Node Backend Open WA service root, not your Next.js frontend URL. |
-| `OPENWA_API_KEY` | `your_custom_secret_key` | Must exactly match `API_KEY` set on the Node Backend |
-| `WHATSAPP_MY_NUMBER` | `1234567890` | Personal target number (numbers only, country code first) |
-| `WHATSAPP_UPDATES_GROUP_ID` | `1234567890-14839284@g.us` | The group chat ID where updates go |
-| `WHATSAPP_TEST_CLIENT_ID` | `1987654321` | Private message client target chat ID or phone number |
-
-### Step 3: Deploy
-Click **Deploy**. Next.js will build and configure the API routes dynamically.
+### 4. Trigger Initialization & Scan QR Code
+1. Open the dashboard at `http://localhost:3000`.
+2. On page load, the frontend will call `/api/whatsapp/status`, which dynamically triggers the WhatsApp initialization process in the background.
+3. Check your terminal: an **ASCII QR Code** will be printed directly in the console. Alternatively, the status card on the UI will display a renderable QR Code image once loaded.
+4. Open WhatsApp on your phone -> Go to **Linked Devices** -> **Link a Device** -> Scan the QR code.
+5. Once scanned, session keys are stored locally (in `./sessions`), keeping you logged in across restarts.
 
 ---
 
-## ⚡ WhatsApp Session Management & Graceful Recovery
+## 🐳 Docker Production Deployment
 
-> [!NOTE]
-> When the Node Backend starts up, it takes a few moments to initialize the Puppeteer/Chromium instance and establish a connection to WhatsApp.
+To package and deploy the consolidated application:
 
-### How the Dashboard Handles This:
-1. **Dynamic Health Indicator:** On page load, the dashboard pings the backend. If the backend is initializing, the status card turns orange, indicating **"Waking Up / Initializing"**.
-2. **User Guidance:** The status card displays notices that the Node backend is launching the WhatsApp client browser and prompts the user to refresh status.
-3. **Status Sync:** Once the client connects to WhatsApp, refreshing the page updates the status card to green, showing **"Active & Connected"** with response latency stats.
-4. **Thin Proxies:** The dashboard masks all target configurations, keeping keys server-side in Next.js to protect sensitive contact numbers from client inspection.
+1. **Build the Docker Image:**
+   ```bash
+   docker build -t whatsapp-dashboard .
+   ```
+2. **Run the Container with Persistent Sessions:**
+   Mount a local directory to preserve WhatsApp logins across container rebuilds:
+   ```bash
+   docker run -d \
+     -p 3000:3000 \
+     -v $(pwd)/sessions:/app/sessions \
+     --env-file .env \
+     --name whatsapp-dashboard-app \
+     whatsapp-dashboard
+   ```
+
+The root [Dockerfile](file:///e:/OpenWA-test/Dockerfile) uses a multi-stage compilation pipeline, installs all necessary Debian system libraries for headless Chromium execution, and sets `PUPPETEER_EXECUTABLE_PATH` to ensure Puppeteer runs correctly inside Linux.
+
+---
+
+## 🚀 Hosting on Render (Production Deployment)
+
+Render is an excellent hosting platform that allows you to deploy Docker containers directly. Because our application spawns an in-process Puppeteer browser, you must deploy using Render's **Docker** environment (which automatically builds using the root `Dockerfile`).
+
+### Step-by-Step Render Setup
+
+1. **Create a New Web Service:**
+   * Go to your [Render Dashboard](https://dashboard.render.com/) and click **New > Web Service**.
+   * Connect your GitHub repository containing this project.
+
+2. **Configure Service Settings:**
+   * **Name:** `whatsapp-action-dashboard`
+   * **Runtime:** Select **Docker** (Render will automatically detect and build the root `Dockerfile`).
+   * **Instance Type:** Select **Starter** or higher (running headless Puppeteer/Chromium reliably requires at least 512MB-1GB RAM. We recommend 1GB RAM minimum).
+
+3. **Configure Environment Variables:**
+   Under the **Environment** tab, add the following variables:
+   * `WHATSAPP_ENABLED` = `true`
+   * `WHATSAPP_SESSION_PATH` = `/app/sessions` (Must match the container path)
+   * `WHATSAPP_HEADLESS` = `true`
+   * `WHATSAPP_MY_NUMBER` = `[your phone number]`
+   * `WHATSAPP_UPDATES_GROUP_ID` = `[your target group ID]`
+   * `WHATSAPP_TEST_CLIENT_ID` = `[your test client ID]`
+   * `PORT` = `3000`
+
+4. **Set Up a Persistent Disk (Crucial for Session Storage):**
+   Render containers have ephemeral filesystems. If you do not attach a persistent volume, your WhatsApp login state will be deleted every time your service restarts or redeploys, forcing you to scan the QR code again.
+   * Go to the **Disks** tab of your Render Web Service.
+   * Click **Add Disk**.
+   * **Name:** `whatsapp-sessions-volume`
+   * **Mount Path:** `/app/sessions`
+   * **Size:** `1 GB` (More than enough for storing text session keys)
+
+5. **Deploy the Web Service:**
+   * Click **Create Web Service**. Render will pull the code, execute the multi-stage Docker build, set up the Chromium libraries, mount the persistent disk, and start the app.
+   * Once live, navigate to the web service URL, open the dashboard to trigger lazy-bootstrap, and scan the QR code to authenticate.
 
 ---
 
 ## 📋 Full Test Checklist
-Before sharing with team members, complete these steps to verify your system:
-- [ ] Run `npm run build` in both the root folder and `openwa-service` to verify TypeScript compilation.
-- [ ] Start the backend service (`npm start` or `npm run dev`) and scan the ASCII QR code if prompt is shown.
-- [ ] Start the Next.js frontend and verify that all environment variables are mapped correctly.
-- [ ] Access the frontend dashboard; verify the Status Card loads and shows the masked Node Backend URL.
-- [ ] Click **System Ping Test** -> Verify WhatsApp message arrives on your phone within seconds.
-- [ ] Click **Send Test Message to Me** -> Confirm delivery and dynamic timestamp layout.
+
+Verify the consolidated implementation using the checklist below:
+- [x] Run `npx tsc --noEmit` in the root folder to verify complete TypeScript type safety.
+- [ ] Start the Next.js development server (`npm run dev`) and monitor console logs.
+- [ ] Access the dashboard at `http://localhost:3000`; confirm that the status card transition moves to `'authenticating'` and displays the QR code.
+- [ ] Scan the QR code with your phone and ensure the status card turns green, reading `"Active & Connected"`.
+- [ ] Restart your development server; confirm that the client logs in automatically without requiring another QR scan.
+- [ ] Click **Send Test Message to Me** -> Confirm delivery and dynamic timestamp layout on your phone.
 - [ ] Click **Registration Alert Simulation** -> Confirm lead details format in chat.
 - [ ] Click **Client Update Broadcast to Group** -> Confirm the message propagates to your client group channel.
 - [ ] Click **Private Client Progress Update** -> Confirm isolated recipient delivery.
-- [ ] Verify error states by changing the `OPENWA_API_KEY` to an invalid string and observing the card display "Unauthorized" or connection errors gracefully.
+- [ ] Send `ping` to your WhatsApp account from another device -> Confirm that the automatic event listener responds with `pong`.
