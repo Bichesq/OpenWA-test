@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWhatsAppConfig } from '@/lib/whatsapp/config';
-import { sendWhatsAppMessage } from '@/lib/whatsapp/service';
+import { dispatchWhatsAppMessage } from '@/lib/whatsapp/handlers';
 import { messageTemplates, TemplateKey } from '@/lib/whatsapp/templates';
 
 export async function POST(req: NextRequest) {
+  const timestamp = new Date().toISOString();
   try {
     const body = await req.json().catch(() => ({}));
     const { scenario } = body;
 
     if (!scenario) {
       return NextResponse.json(
-        { success: false, error: 'Missing "scenario" parameter in request body.' },
+        { success: false, error: 'Missing "scenario" parameter in request body.', timestamp },
         { status: 400 }
       );
     }
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     if (!config.enabled) {
       return NextResponse.json(
-        { success: false, error: 'WhatsApp integration is disabled in system configurations.' },
+        { success: false, error: 'WhatsApp integration is disabled in system configurations.', timestamp },
         { status: 403 }
       );
     }
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
         break;
       default:
         return NextResponse.json(
-          { success: false, error: `Invalid test scenario: "${scenario}".` },
+          { success: false, error: `Invalid test scenario: "${scenario}".`, timestamp },
           { status: 400 }
         );
     }
@@ -61,7 +62,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { 
           success: false, 
-          error: `Target variable is not configured for scenario "${scenario}". Please set the correct environment variables.` 
+          error: `Target variable is not configured for scenario "${scenario}". Please set the correct environment variables.`,
+          timestamp
         },
         { status: 400 }
       );
@@ -71,34 +73,26 @@ export async function POST(req: NextRequest) {
     const templateFunction = messageTemplates[scenario as TemplateKey];
     const messageContent = templateFunction();
 
-    console.log(`[API Send Route] Sending ${scenario} message to: ${targetDescription}`);
+    console.log(`[API Send Route] Dispatching ${scenario} message to: ${targetDescription} (${target})`);
 
-    // 4. Forward message to Node Backend API
-    const result = await sendWhatsAppMessage(target, messageContent);
+    // 4. Dispatch the message directly in-process
+    const messageId = await dispatchWhatsAppMessage(target, messageContent);
 
-    if (result.success) {
-      return NextResponse.json({
-        success: true,
-        message: `Successfully sent "${scenario}" message!`,
-        messageId: result.messageId,
-        target: targetDescription,
-        content: messageContent,
-        timestamp: result.timestamp,
-      }, { status: 200 });
-    }
-
-    // Return detailed API errors
     return NextResponse.json({
-      success: false,
-      error: result.error || 'Failed to dispatch WhatsApp message.',
-      details: result.details,
-    }, { status: 502 }); // Bad Gateway since Node Backend failed
+      success: true,
+      message: `Successfully sent "${scenario}" message!`,
+      messageId,
+      target: targetDescription,
+      content: messageContent,
+      timestamp,
+    }, { status: 200 });
 
   } catch (error: any) {
     console.error('[API Send Route] Internal execution error:', error);
     return NextResponse.json({
       success: false,
       error: error.message || 'Internal server error occurred.',
+      timestamp,
     }, { status: 500 });
   }
 }

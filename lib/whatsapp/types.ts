@@ -1,18 +1,19 @@
 export interface WhatsAppConfig {
   enabled: boolean;
-  baseUrl: string;
-  apiKey: string;
+  sessionDataPath: string;
+  headless: boolean;
   myNumber: string;
   updatesGroupId: string;
   testClientId: string;
 }
 
-export type WhatsAppStatus = 'connected' | 'waking_up' | 'unreachable' | 'disabled' | 'authenticating';
+export type WhatsAppStatus = 'connected' | 'waking_up' | 'unreachable' | 'disabled' | 'authenticating' | 'offline';
 
 export interface WhatsAppStatusResponse {
   status: WhatsAppStatus;
   message: string;
   qr?: string;
+  endpoint?: string;
   details?: {
     version?: string;
     waVersion?: string;
@@ -21,7 +22,6 @@ export interface WhatsAppStatusResponse {
     error?: string;
     config?: {
       enabled: boolean;
-      endpoint: string;
       hasMyNumber: boolean;
       hasGroupId: boolean;
       hasClientId: boolean;
@@ -30,7 +30,6 @@ export interface WhatsAppStatusResponse {
       clientIdMasked?: string;
     };
   };
-  endpoint: string;
 }
 
 export interface SendMessagePayload {

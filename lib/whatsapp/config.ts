@@ -1,27 +1,22 @@
 import { WhatsAppConfig } from './types';
+import path from 'path';
 
 export function getWhatsAppConfig(): WhatsAppConfig {
   const enabled = process.env.WHATSAPP_ENABLED === 'true';
-  const rawBaseUrl = process.env.OPENWA_BASE_URL || '';
-  // Normalize base URL: strip trailing slash and any path/query/hash to leave only the origin
-  let baseUrl = rawBaseUrl.replace(/\/$/, '');
-  try {
-    if (baseUrl) {
-      const parsed = new URL(baseUrl);
-      baseUrl = parsed.origin; // ensures no extra path segments
-    }
-  } catch {
-    // Keep original (possibly invalid) value; validation will catch it later
-  }
-  const apiKey = process.env.OPENWA_API_KEY || '';
+  
+  // Resolve session data path: defaults to a local 'sessions' directory in root
+  const rawSessionPath = process.env.WHATSAPP_SESSION_PATH || './sessions';
+  const sessionDataPath = path.resolve(process.cwd(), rawSessionPath);
+
+  const headless = process.env.WHATSAPP_HEADLESS !== 'false';
   const myNumber = process.env.WHATSAPP_MY_NUMBER || '';
   const updatesGroupId = process.env.WHATSAPP_UPDATES_GROUP_ID || '';
   const testClientId = process.env.WHATSAPP_TEST_CLIENT_ID || '';
 
   return {
     enabled,
-    baseUrl: baseUrl.replace(/\/$/, ''), // Strip trailing slash
-    apiKey,
+    sessionDataPath,
+    headless,
     myNumber,
     updatesGroupId,
     testClientId,
@@ -32,15 +27,6 @@ export function validateWhatsAppConfig(config: WhatsAppConfig): { isValid: boole
   if (!config.enabled) {
     return { isValid: false, error: 'WhatsApp integration is disabled via WHATSAPP_ENABLED environment variable.' };
   }
-
-  if (!config.baseUrl) {
-    return { isValid: false, error: 'Missing OPENWA_BASE_URL environment variable.' };
-  }
-
-  if (!config.apiKey) {
-    return { isValid: false, error: 'Missing OPENWA_API_KEY environment variable.' };
-  }
-
   return { isValid: true };
 }
 
@@ -53,20 +39,8 @@ export function maskString(str: string, keepChars = 4): string {
 export function getSafeConfigSummary() {
   const config = getWhatsAppConfig();
   
-  // Basic URL parsing to show host only
-  let safeUrl = 'Not configured';
-  if (config.baseUrl) {
-    try {
-      const url = new URL(config.baseUrl);
-      safeUrl = `${url.protocol}//${url.hostname}`;
-    } catch {
-      safeUrl = 'Invalid URL';
-    }
-  }
-
   return {
     enabled: config.enabled,
-    endpoint: safeUrl,
     hasMyNumber: !!config.myNumber,
     hasGroupId: !!config.updatesGroupId,
     hasClientId: !!config.testClientId,

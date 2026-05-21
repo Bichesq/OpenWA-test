@@ -152,11 +152,11 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
           <div className="flex items-center gap-3 p-3.5 rounded-xl bg-black/20 border border-white/5">
             <Cpu className="w-4 h-4 text-purple-400 shrink-0" />
             <div>
-              <div className="font-semibold text-zinc-400">Remote API Engine</div>
+              <div className="font-semibold text-zinc-400">Embedded Engine</div>
               <div className="text-zinc-200 mt-0.5">
                 {connectionState === 'connected' && details?.version 
                   ? details.version 
-                  : 'Open WA EASY API'}
+                  : '@open-wa/wa-automate'}
               </div>
             </div>
           </div>
@@ -165,12 +165,12 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
         {/* Node backend helper text */}
         {connectionState === 'waking_up' && (
           <div className="mt-5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 leading-normal animate-pulse">
-            <strong>Notice:</strong> The Node backend is initializing the WhatsApp client browser. This process may take a moment to launch.
+            <strong>Notice:</strong> The Next.js backend is initializing the WhatsApp client browser in-process. This process may take a moment to launch.
           </div>
         )}
         {connectionState === 'unreachable' && (
           <div className="mt-5 p-3 rounded-lg bg-zinc-500/5 border border-white/5 text-xs text-zinc-300 leading-normal">
-            <strong>Troubleshooting:</strong> Make sure the `openwa-service` Node backend is running locally. Verify that the server is started on the correct port and confirm the `OPENWA_BASE_URL` is set correctly in your environment.
+            <strong>Troubleshooting:</strong> Make sure the Next.js backend server is running. Verify that `WHATSAPP_ENABLED` is set to `true` in your environment and check the server logs for any initialization errors.
           </div>
         )}
       </div>
