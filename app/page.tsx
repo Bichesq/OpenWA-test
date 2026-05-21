@@ -147,7 +147,7 @@ export default function Dashboard() {
           </h1>
 
           <p className="text-zinc-400 text-base md:text-lg max-w-3xl leading-relaxed">
-            This dashboard pings and triggers WhatsApp actions in your separate always-on <strong>Open WA EASY API</strong> server hosted on Render. 
+            This dashboard pings and triggers WhatsApp actions in your separate <strong>Open WA EASY API</strong> backend service running the embedded runtime. 
             All environment credentials and target configurations are securely processed server-side in Next.js route handlers.
           </p>
 
@@ -168,12 +168,12 @@ export default function Dashboard() {
             <div className="border-t md:border-t-0 md:border-l border-white/5 pt-4 md:pt-0 md:pl-6">
               <h2 className="flex items-center gap-2 font-bold text-zinc-200 text-sm uppercase tracking-wider mb-2">
                 <Terminal className="w-4 h-4 text-emerald-400" />
-                Render WhatsApp Layer (Engine)
+                Node Backend Layer (Engine)
               </h2>
               <ul className="space-y-2 text-sm text-zinc-400 list-disc list-inside">
                 <li>Hosts the actual Puppeteer browser and WhatsApp runtime.</li>
-                <li>Render free tier automatically spins down on 15m inactivity.</li>
-                <li>Recovers gracefully on cold-starts through retry-friendly status queries.</li>
+                <li>Handles internal WhatsApp automate connection states.</li>
+                <li>Exposes HTTP API endpoints for clean triggers and status monitoring.</li>
               </ul>
             </div>
           </div>

@@ -53,6 +53,7 @@ const messageTemplates = {
 let client = null;
 let clientInitializing = false;
 let clientAuthStatus = 'offline'; // 'offline' | 'authenticating' | 'connected'
+let latestQrCode = null;
 let startTime = Date.now();
 let lastError = null;
 // ==================== API Key Middleware ====================
@@ -79,11 +80,36 @@ async function initializeClient() {
     }
     clientInitializing = true;
     clientAuthStatus = 'authenticating';
+    latestQrCode = null;
+    lastError = null;
     try {
         console.log('[CLIENT] Starting wa-automate initialization...');
         // Import wa-automate only when needed
         const waAutomate = require('@open-wa/wa-automate');
-        const { create } = waAutomate;
+        const { create, ev } = waAutomate;
+        // Listen for QR code and state change events BEFORE calling create
+        ev.on('qr.**', (qrcode, sessionId) => {
+            console.log(`[QR CODE] New QR code generated for session: ${sessionId}`);
+            latestQrCode = qrcode;
+            clientAuthStatus = 'authenticating';
+            lastError = null;
+        });
+        ev.on('change_state.**', (state, sessionId) => {
+            console.log(`[STATE] WhatsApp state changed for session ${sessionId}: ${state}`);
+            if (state === 'CONNECTED') {
+                clientAuthStatus = 'connected';
+                latestQrCode = null;
+                lastError = null;
+            }
+            else if (state === 'DISCONNECTED' || state === 'UNPAIRED' || state === 'CONFLICT') {
+                clientAuthStatus = 'offline';
+                latestQrCode = null;
+                lastError = `WhatsApp state changed to ${state}`;
+            }
+            else if (state === 'PAIRING' || state === 'SYNCING') {
+                clientAuthStatus = 'authenticating';
+            }
+        });
         // Get session data path
         const sessionPath = path_1.default.join(SESSION_DATA_PATH, 'whatsapp-session.json');
         // Configuration options for wa-automate
@@ -103,27 +129,7 @@ async function initializeClient() {
         };
         // Create the client
         const newClient = await create(config);
-        // Log QR code on first authentication
-        newClient.onStateChanged(async (state) => {
-            console.log(`[STATE] WhatsApp state changed: ${state}`);
-            if (state === 'QRCODE') {
-                const qrCode = await newClient.getQrCode();
-                console.log('[QR CODE] Scan this QR code with WhatsApp Linked Devices:');
-                console.log(qrCode);
-                clientAuthStatus = 'authenticating';
-            }
-            if (state === 'CONNECTED') {
-                console.log('[CONNECTED] WhatsApp session established!');
-                clientAuthStatus = 'connected';
-                lastError = null;
-            }
-            if (state === 'DISCONNECTED') {
-                console.warn('[DISCONNECTED] WhatsApp connection lost');
-                clientAuthStatus = 'offline';
-                lastError = 'WhatsApp disconnected';
-            }
-        });
-        // Set up general error handler
+        // Set up general error handler on client
         newClient.onError((error) => {
             console.error('[ERROR] wa-automate error:', error.message);
             lastError = error.message;
@@ -131,11 +137,13 @@ async function initializeClient() {
         });
         client = newClient;
         clientAuthStatus = 'connected';
+        latestQrCode = null;
         console.log('[CLIENT] ✓ wa-automate client initialized successfully');
     }
     catch (error) {
         clientInitializing = false;
         clientAuthStatus = 'offline';
+        latestQrCode = null;
         lastError = error.message || String(error);
         console.error('[INIT ERROR] Failed to initialize wa-automate:', error);
         throw error;
@@ -173,6 +181,7 @@ app.get('/status', async (req, res) => {
         authenticated: clientAuthStatus === 'connected',
         uptime,
         error: lastError,
+        qr: latestQrCode || undefined,
     });
 });
 // Send text message - requires auth

@@ -44,7 +44,7 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
           glow: 'shadow-amber-500/20',
           dot: 'bg-amber-400 animate-bounce',
           icon: <Activity className="w-5 h-5 animate-pulse" />,
-          label: 'Waking Up (Render Cold Start)',
+          label: 'Waking Up / Initializing',
         };
       case 'disabled':
         return {
@@ -128,7 +128,7 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
           <div className="flex items-center gap-3 p-3.5 rounded-xl bg-black/20 border border-white/5">
             <Globe className="w-4 h-4 text-sky-400 shrink-0" />
             <div className="overflow-hidden">
-              <div className="font-semibold text-zinc-400">Render Base URL</div>
+              <div className="font-semibold text-zinc-400">Node Backend URL</div>
               <div className="text-zinc-200 truncate mt-0.5" title={endpoint}>{endpoint}</div>
             </div>
           </div>
@@ -162,15 +162,15 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
           </div>
         </div>
 
-        {/* Rent free-tier helper text */}
+        {/* Node backend helper text */}
         {connectionState === 'waking_up' && (
           <div className="mt-5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 leading-normal animate-pulse">
-            <strong>Pro Tip:</strong> Render Free web services spin down after 15 minutes of inactivity. Pinging the service automatically initiates the boot cycle, which typically takes 50 to 90 seconds. Keep clicking refresh until the status turns green.
+            <strong>Notice:</strong> The Node backend is initializing the WhatsApp client browser. This process may take a moment to launch.
           </div>
         )}
         {connectionState === 'unreachable' && (
           <div className="mt-5 p-3 rounded-lg bg-zinc-500/5 border border-white/5 text-xs text-zinc-300 leading-normal">
-            <strong>Troubleshooting:</strong> If the service has spun down, clicking "Check Status" will wake it up. If it remains unreachable after 2 minutes, check that your Render environment is running, verify the API keys, and confirm the `OPENWA_BASE_URL` is set correctly.
+            <strong>Troubleshooting:</strong> Make sure the `openwa-service` Node backend is running locally. Verify that the server is started on the correct port and confirm the `OPENWA_BASE_URL` is set correctly in your environment.
           </div>
         )}
       </div>

@@ -46,7 +46,7 @@ async function fetchWithTimeout(
 }
 
 /**
- * Check health / reachability of the remote Render-hosted Open WA service
+ * Check health / reachability of the Open WA service running on the Node backend
  */
 export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
   const config = getWhatsAppConfig();
@@ -111,7 +111,7 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
                   details: {
                     uptime: body.uptime || duration,
                     version: 'wa-automate',
-                    platform: 'Render',
+                    platform: 'Node Backend',
                     config: getSafeConfigSummary(),
                   },
                 };
@@ -124,7 +124,7 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
                   details: {
                     uptime: body.uptime || duration,
                     version: 'wa-automate',
-                    platform: 'Render',
+                    platform: 'Node Backend',
                     config: getSafeConfigSummary(),
                     error: body.error || undefined,
                   },
@@ -137,7 +137,7 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
                   details: {
                     uptime: body.uptime || duration,
                     version: 'wa-automate',
-                    platform: 'Render',
+                    platform: 'Node Backend',
                     config: getSafeConfigSummary(),
                     error: body.error || undefined,
                   },
@@ -200,7 +200,7 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
               details: {
                 uptime: extraInfo.uptime || duration,
                 version: 'wa-automate',
-                platform: 'Render',
+                platform: 'Node Backend',
                 config: getSafeConfigSummary(),
               },
             };
@@ -214,7 +214,7 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
           details: {
             uptime: extraInfo.uptime || duration,
             version: extraInfo.version || 'EASY API',
-            platform: 'Render',
+            platform: 'Node Backend',
             config: getSafeConfigSummary(),
           },
         };
@@ -229,15 +229,15 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
       console.warn(`[WhatsApp Service] Ping to ${path} failed:`, err.message || err);
       lastError = err;
       
-      // If we timed out (AbortError), it's likely a cold start on Render's free tier.
+      // If we timed out (AbortError), the backend might be initializing or starting up.
       // We immediately return 'waking_up' to avoid waiting through other candidates.
       if (err.name === 'AbortError') {
         return {
           status: 'waking_up',
-          message: 'Open WA service is taking longer than 5 seconds to respond. It is likely waking up from Render free tier sleep.',
+          message: 'Open WA service is taking longer than 5 seconds to respond. It is likely initializing or starting up.',
           endpoint,
           details: { 
-            error: 'Timeout waiting for Render instance',
+            error: 'Timeout waiting for Node Backend instance',
             config: getSafeConfigSummary()
           },
         };
@@ -313,8 +313,7 @@ export async function sendWhatsAppMessage(
   };
 
   try {
-    // On send, we give it a longer timeout (15s) in case Render is warming up.
-    // However, if Render is totally sleeping, it might exceed 15s.
+    // On send, we give it a longer timeout (15s) in case the backend is warming up/initializing.
     const response = await fetchWithTimeout(
       sendUrl,
       {
@@ -362,14 +361,14 @@ export async function sendWhatsAppMessage(
     if (error.name === 'AbortError') {
       return {
         success: false,
-        error: 'Send request timed out. The Render instance might still be waking up, or the message is taking too long to send.',
+        error: 'Send request timed out. The Node Backend instance might still be waking up, or the message is taking too long to send.',
         timestamp,
       };
     }
 
     return {
       success: false,
-      error: `Failed to connect to Render Open WA service: ${error.message || 'Unknown error'}`,
+      error: `Failed to connect to Node Backend Open WA service: ${error.message || 'Unknown error'}`,
       timestamp,
     };
   }

@@ -14,6 +14,7 @@ export interface StatusResponse {
     authenticated?: boolean;
     uptime?: number;
     error?: string;
+    qr?: string;
 }
 export interface HealthResponse {
     status: 'healthy' | 'initializing';

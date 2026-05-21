@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`[API Send Route] Sending ${scenario} message to: ${targetDescription}`);
 
-    // 4. Forward message to Render API
+    // 4. Forward message to Node Backend API
     const result = await sendWhatsAppMessage(target, messageContent);
 
     if (result.success) {
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       success: false,
       error: result.error || 'Failed to dispatch WhatsApp message.',
       details: result.details,
-    }, { status: 502 }); // Bad Gateway since Render failed
+    }, { status: 502 }); // Bad Gateway since Node Backend failed
 
   } catch (error: any) {
     console.error('[API Send Route] Internal execution error:', error);

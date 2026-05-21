@@ -6,12 +6,12 @@ A modern Next.js dashboard designed to trigger manual scenario test messages via
 
 This project is built using a decoupled, production-minded structure:
 1. **Next.js Dashboard UI (Vercel):** A highly aesthetic glassmorphic dark UI that manages user interactions.
-2. **Open WA EASY API Service (Render):** An always-on or semi-persistent Puppeteer browser runtime hosting the actual WhatsApp connection.
+2. **Open WA EASY API Service (Node Backend):** A local or self-hosted persistent Node backend running the embedded runtime with a Puppeteer browser hosting the actual WhatsApp connection.
 
 ### 🛡️ Why HTTP was chosen over SocketClient for Vercel
 Vercel's Serverless environment is ephemeral—functions spin up to serve a request and sleep immediately after. Maintaining a stateful WebSocket connection (`SocketClient`) in a serverless environment is an anti-pattern and highly unreliable, leading to dropped connection frames and thread freezing.
 
-Instead, our Next.js Route Handlers call the Render Open WA instance over **stateless HTTP endpoints** (e.g. `POST /sendText`). This fits Vercel perfectly, keeps execution memory extremely thin, prevents socket disconnections, and allows graceful handling of Render free-tier wake-up cycles.
+Instead, our Next.js Route Handlers call the Node Backend Open WA instance over **stateless HTTP endpoints** (e.g. `POST /sendText`). This fits Vercel perfectly, keeps execution memory extremely thin, prevents socket disconnections, and allows graceful handling of backend initialization states.
 
 ---
 
@@ -31,7 +31,7 @@ Instead, our Next.js Route Handlers call the Render Open WA instance over **stat
 ├── components/
 │   └── dashboard/
 │       ├── action-card.tsx         # Trigger card with loading & feedback logic
-│       └── status-card.tsx         # Connection status & Render specs monitor
+│       └── status-card.tsx         # Connection status & Node Backend specs monitor
 ├── lib/
 │   └── whatsapp/
 │       ├── config.ts               # Env loading, validation, and string masking
@@ -45,67 +45,47 @@ Instead, our Next.js Route Handlers call the Render Open WA instance over **stat
 
 ---
 
-## 🚀 Deploying the Open WA EASY API to Render (WhatsApp Layer)
+## 🚀 Running the Open WA EASY API (Node Backend WhatsApp Layer)
 
-Render's standard Node environment lacks the system libraries required to run Puppeteer/headless Chrome. **Docker is the bulletproof solution** to ensure all Chromium dependencies are present.
+The Node backend is a standalone Express service located in the `openwa-service` directory. It wraps `@open-wa/wa-automate` and Puppeteer/headless Chrome to execute the embedded runtime.
 
-### Step 1: Create a Render Web Service
-1. Sign in to your [Render Dashboard](https://dashboard.render.com).
-2. Click **New +** and select **Web Service**.
-3. Connect your Git repository containing this project.
+### Local Setup & Execution
+1. Navigate to the backend directory:
+   ```bash
+   cd openwa-service
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Build the project:
+   ```bash
+   npm run build
+   ```
+4. Run the service (set your preferred `PORT` and `API_KEY`):
+   ```bash
+   PORT=8080 API_KEY=your_secure_api_key npm start
+   ```
+   *(Alternatively, run in development mode with `npm run dev`)*
 
-### Step 2: Configure Build Settings
-Under the service details, set the following options:
-* **Runtime:** `Docker`
-* **Docker Context:** `.` (root directory)
-* **Dockerfile Path:** `Dockerfile.openwa` (This points to our preconfigured chromium container)
-* **Instance Type:** `Free` (or higher)
-
-### Step 3: Add Environment Variables
-Click the **Environment** tab in your Render service and add:
-* `PORT`: `8080` (Render defaults to routing here)
-* `API_KEY`: `your_custom_secret_key` (This is the authorization key the Next.js app will use)
-
-### Step 3.1: Local validation (recommended)
-Before deploying to Render, validate the new `openwa-service` locally:
-* `cd openwa-service`
-* `npm install`
-* `npm run build`
-* `PORT=8080 API_KEY=testkey npm start`
-
-Then open another terminal and ensure the service responds:
+### Verify the Node Backend is Running
+Open another terminal or browser tab and check:
 ```bash
 curl http://localhost:8080/ping
 curl http://localhost:8080/status
 ```
-If the local service starts successfully, the logs should print a QR code on first run and later restore the session from the mounted session directory.
-
-### Step 3.5: Verify the Render service is the Open WA engine
-Before you copy the service URL into `OPENWA_BASE_URL`, verify the deployed Render service is actually running the Open WA container and not the frontend app:
-
-1. Open the Render service URL in a browser. You should not see the dashboard homepage or Next.js frontend UI.
-2. Run these quick checks from a terminal:
-
-```bash
-curl -i https://your-openwa-service.onrender.com/ping
-curl -i https://your-openwa-service.onrender.com/api-docs/
-```
 
 Expected behavior:
-* `/ping` should return a status code from the Open WA service, not a Next.js HTML page.
-* `/api-docs/` should not return the dashboard frontend homepage.
-* `POST /sendText` should be the Open WA send endpoint.
+* `/ping` returns a simple `{ "status": "ok" }` or similar backend status.
+* `/status` returns the connection state of the WhatsApp client (e.g. `'authenticating'`, `'connected'`, `'unreachable'`).
 
-If you see Next.js HTML or a frontend page, the service URL is still wrong or the service deployment is pointing to the frontend code.
+### Scan the QR Code to Bootstrap WhatsApp
+1. On its first run, the Node backend launches Puppeteer and attempts to authenticate with WhatsApp.
+2. Look at the terminal stdout where you started `openwa-service`. An ASCII QR Code will be printed directly in the console.
+3. Open WhatsApp on your phone -> Go to **Linked Devices** -> **Link a Device** -> Scan the ASCII QR code from your terminal.
+4. Once scanned, the session credentials will be saved in the `openwa-service/session` folder, keeping you logged in for future server restarts.
 
-### Step 4: Scan the QR Code to Bootstrap WhatsApp
-1. Once deployed, Open WA will attempt to boot Chrome and generate a QR Code.
-2. Click the **Logs** tab in Render.
-3. Look for the ASCII QR Code printed directly in the log screen.
-4. Open WhatsApp on your phone -> Go to **Linked Devices** -> **Link a Device** -> Scan the ASCII QR code from your Render console.
-5. Alternatively, if you enabled `--popup` or check logs, the session file will save inside the docker volume, keeping you logged in.
-
-*Note: The first connection registers the session. On subsequent container spins (even after cold starts), Open WA will automatically restore your session!*
+*(Note: Docker configuration is available via `Dockerfile.openwa` for production containerization.)*
 
 ---
 
@@ -123,8 +103,8 @@ Under **Environment Variables**, add the following keys:
 | Environment Variable | Example Value | Description |
 | :--- | :--- | :--- |
 | `WHATSAPP_ENABLED` | `true` | Enables/Disables dashboard actions |
-| `OPENWA_BASE_URL` | `https://your-openwa-service.onrender.com` | Exclude trailing slash. Must point to the Render Open WA service root, not your Next.js frontend URL. |
-| `OPENWA_API_KEY` | `your_custom_secret_key` | Must exactly match `API_KEY` set on Render |
+| `OPENWA_BASE_URL` | `http://localhost:8080` | Exclude trailing slash. Must point to the Node Backend Open WA service root, not your Next.js frontend URL. |
+| `OPENWA_API_KEY` | `your_custom_secret_key` | Must exactly match `API_KEY` set on the Node Backend |
 | `WHATSAPP_MY_NUMBER` | `1234567890` | Personal target number (numbers only, country code first) |
 | `WHATSAPP_UPDATES_GROUP_ID` | `1234567890-14839284@g.us` | The group chat ID where updates go |
 | `WHATSAPP_TEST_CLIENT_ID` | `1987654321` | Private message client target chat ID or phone number |
@@ -134,28 +114,28 @@ Click **Deploy**. Next.js will build and configure the API routes dynamically.
 
 ---
 
-## ❄️ Render Free Tier Cold Starts & Graceful Recovery
+## ⚡ WhatsApp Session Management & Graceful Recovery
 
 > [!NOTE]
-> Render's free tier web services spin down after **15 minutes of inactivity**. When a new HTTP request is received, it triggers a cold start, which takes **50 to 90 seconds** to boot Chromium and start the API.
+> When the Node Backend starts up, it takes a few moments to initialize the Puppeteer/Chromium instance and establish a connection to WhatsApp.
 
 ### How the Dashboard Handles This:
-1. **Dynamic Health Indicator:** On page load, the dashboard pings Render. If Render is asleep, the request will hit a 5s timeout. The status card immediately turns orange, indicating **"Waking Up... (Render Cold Start)"**.
-2. **User Guidance:** The status card displays instructions informing the user that Render is waking up and provides a **Check Status** button to let them recheck.
-3. **Optimistic Retry Logs:** Pinging the service automatically boots the Render container. Once fully awake, refreshing the page turns the indicator green, showing **"Active & Connected"** with response latency stats.
-4. **Thin Proxies:** The dashboard masks all target configurations, keeping keys server-side in Vercel to protect sensitive contact numbers from client inspection.
+1. **Dynamic Health Indicator:** On page load, the dashboard pings the backend. If the backend is initializing, the status card turns orange, indicating **"Waking Up / Initializing"**.
+2. **User Guidance:** The status card displays notices that the Node backend is launching the WhatsApp client browser and prompts the user to refresh status.
+3. **Status Sync:** Once the client connects to WhatsApp, refreshing the page updates the status card to green, showing **"Active & Connected"** with response latency stats.
+4. **Thin Proxies:** The dashboard masks all target configurations, keeping keys server-side in Next.js to protect sensitive contact numbers from client inspection.
 
 ---
 
 ## 📋 Full Test Checklist
 Before sharing with team members, complete these steps to verify your system:
-- [ ] Run `npm run build` locally to verify TypeScript compilation.
-- [ ] Deploy Render container and verify WhatsApp logs say "Session logged in".
-- [ ] Deploy Next.js to Vercel and check that all environment variables are mapped.
-- [ ] Access the Vercel Dashboard; verify the Status Card loads and shows the masked Render host.
+- [ ] Run `npm run build` in both the root folder and `openwa-service` to verify TypeScript compilation.
+- [ ] Start the backend service (`npm start` or `npm run dev`) and scan the ASCII QR code if prompt is shown.
+- [ ] Start the Next.js frontend and verify that all environment variables are mapped correctly.
+- [ ] Access the frontend dashboard; verify the Status Card loads and shows the masked Node Backend URL.
 - [ ] Click **System Ping Test** -> Verify WhatsApp message arrives on your phone within seconds.
 - [ ] Click **Send Test Message to Me** -> Confirm delivery and dynamic timestamp layout.
 - [ ] Click **Registration Alert Simulation** -> Confirm lead details format in chat.
 - [ ] Click **Client Update Broadcast to Group** -> Confirm the message propagates to your client group channel.
 - [ ] Click **Private Client Progress Update** -> Confirm isolated recipient delivery.
-- [ ] Verify error states by changing the Render API Key to an invalid string and observing the card display "Unauthorized" error codes gracefully without crashing.
+- [ ] Verify error states by changing the `OPENWA_API_KEY` to an invalid string and observing the card display "Unauthorized" or connection errors gracefully.
