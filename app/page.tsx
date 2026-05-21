@@ -208,7 +208,7 @@ export default function Dashboard() {
                 key={scenario.id}
                 scenario={scenario}
                 onSend={handleTriggerScenario}
-                isServiceDisabled={isWhatsAppDisabled || isLoadingStatus || status?.status === 'unreachable'}
+                isServiceDisabled={status?.status !== 'connected' || isLoadingStatus}
               />
             ))}
           </div>

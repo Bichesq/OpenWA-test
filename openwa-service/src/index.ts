@@ -55,6 +55,7 @@ const messageTemplates = {
 let client: any = null;
 let clientInitializing = false;
 let clientAuthStatus = 'offline'; // 'offline' | 'authenticating' | 'connected'
+let latestQrCode: string | null = null;
 let startTime = Date.now();
 let lastError: string | null = null;
 
@@ -88,13 +89,38 @@ async function initializeClient() {
 
   clientInitializing = true;
   clientAuthStatus = 'authenticating';
+  latestQrCode = null;
+  lastError = null;
 
   try {
     console.log('[CLIENT] Starting wa-automate initialization...');
 
     // Import wa-automate only when needed
     const waAutomate = require('@open-wa/wa-automate');
-    const { create } = waAutomate;
+    const { create, ev } = waAutomate;
+
+    // Listen for QR code and state change events BEFORE calling create
+    ev.on('qr.**', (qrcode: string, sessionId: string) => {
+      console.log(`[QR CODE] New QR code generated for session: ${sessionId}`);
+      latestQrCode = qrcode;
+      clientAuthStatus = 'authenticating';
+      lastError = null;
+    });
+
+    ev.on('change_state.**', (state: string, sessionId: string) => {
+      console.log(`[STATE] WhatsApp state changed for session ${sessionId}: ${state}`);
+      if (state === 'CONNECTED') {
+        clientAuthStatus = 'connected';
+        latestQrCode = null;
+        lastError = null;
+      } else if (state === 'DISCONNECTED' || state === 'UNPAIRED' || state === 'CONFLICT') {
+        clientAuthStatus = 'offline';
+        latestQrCode = null;
+        lastError = `WhatsApp state changed to ${state}`;
+      } else if (state === 'PAIRING' || state === 'SYNCING') {
+        clientAuthStatus = 'authenticating';
+      }
+    });
 
     // Get session data path
     const sessionPath = path.join(SESSION_DATA_PATH, 'whatsapp-session.json');
@@ -118,31 +144,7 @@ async function initializeClient() {
     // Create the client
     const newClient = await create(config);
 
-    // Log QR code on first authentication
-    newClient.onStateChanged(async (state: string) => {
-      console.log(`[STATE] WhatsApp state changed: ${state}`);
-
-      if (state === 'QRCODE') {
-        const qrCode = await newClient.getQrCode();
-        console.log('[QR CODE] Scan this QR code with WhatsApp Linked Devices:');
-        console.log(qrCode);
-        clientAuthStatus = 'authenticating';
-      }
-
-      if (state === 'CONNECTED') {
-        console.log('[CONNECTED] WhatsApp session established!');
-        clientAuthStatus = 'connected';
-        lastError = null;
-      }
-
-      if (state === 'DISCONNECTED') {
-        console.warn('[DISCONNECTED] WhatsApp connection lost');
-        clientAuthStatus = 'offline';
-        lastError = 'WhatsApp disconnected';
-      }
-    });
-
-    // Set up general error handler
+    // Set up general error handler on client
     newClient.onError((error: any) => {
       console.error('[ERROR] wa-automate error:', error.message);
       lastError = error.message;
@@ -151,10 +153,12 @@ async function initializeClient() {
 
     client = newClient;
     clientAuthStatus = 'connected';
+    latestQrCode = null;
     console.log('[CLIENT] ✓ wa-automate client initialized successfully');
   } catch (error: any) {
     clientInitializing = false;
     clientAuthStatus = 'offline';
+    latestQrCode = null;
     lastError = error.message || String(error);
     console.error('[INIT ERROR] Failed to initialize wa-automate:', error);
     throw error;
@@ -197,6 +201,7 @@ app.get('/status', async (req: Request, res: Response) => {
     authenticated: clientAuthStatus === 'connected',
     uptime,
     error: lastError,
+    qr: latestQrCode || undefined,
   });
 });
 

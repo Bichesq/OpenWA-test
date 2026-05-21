@@ -7,11 +7,12 @@ export interface WhatsAppConfig {
   testClientId: string;
 }
 
-export type WhatsAppStatus = 'connected' | 'waking_up' | 'unreachable' | 'disabled';
+export type WhatsAppStatus = 'connected' | 'waking_up' | 'unreachable' | 'disabled' | 'authenticating';
 
 export interface WhatsAppStatusResponse {
   status: WhatsAppStatus;
   message: string;
+  qr?: string;
   details?: {
     version?: string;
     waVersion?: string;

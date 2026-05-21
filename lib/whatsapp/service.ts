@@ -117,9 +117,10 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
                 };
               } else if (remoteStatus === 'authenticating') {
                 return {
-                  status: 'waking_up',
+                  status: 'authenticating',
                   message: body.message || 'Waiting for WhatsApp authentication.',
                   endpoint,
+                  qr: body.qr,
                   details: {
                     uptime: body.uptime || duration,
                     version: 'wa-automate',

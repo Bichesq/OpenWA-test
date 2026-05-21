@@ -28,6 +28,15 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
           icon: <CheckCircle2 className="w-5 h-5" />,
           label: 'Active & Connected',
         };
+      case 'authenticating':
+        return {
+          bgColor: 'bg-purple-500/10 border-purple-500/30 text-purple-400',
+          badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+          glow: 'shadow-purple-500/20',
+          dot: 'bg-purple-400 animate-pulse',
+          icon: <Activity className="w-5 h-5 animate-pulse" />,
+          label: 'Authentication Required',
+        };
       case 'waking_up':
         return {
           bgColor: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
@@ -96,6 +105,22 @@ export function StatusCard({ status, isLoading, onRefresh }: StatusCardProps) {
           <div className="mt-0.5">{style.icon}</div>
           <p className="leading-relaxed flex-1">{message}</p>
         </div>
+
+        {/* QR Code display */}
+        {status?.qr && (
+          <div className="flex flex-col items-center justify-center p-6 mb-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+            <p className="text-sm font-semibold text-zinc-200 mb-4 text-center">
+              Scan this QR code with WhatsApp Linked Devices on your phone:
+            </p>
+            <div className="p-3.5 rounded-2xl bg-white shadow-xl shadow-purple-500/5 border border-zinc-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={status.qr} alt="WhatsApp QR Code" className="w-48 h-48 select-none" />
+            </div>
+            <p className="text-xs text-zinc-400 mt-4 text-center leading-relaxed">
+              Once scanned, the status will automatically update to connected.
+            </p>
+          </div>
+        )}
 
         {/* Technical Specs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
