@@ -66,9 +66,10 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
   
   // Try several candidate paths in order of preference to verify the server is alive
   const candidatePaths = [
+    '/status',
+    '/ping',
     '/api-docs/',
-    '/',
-    '/ping'
+    '/'
   ];
 
   console.log(`[WhatsApp Service] Initiating health check on Open WA service at: ${endpoint}`);
@@ -95,6 +96,67 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
 
       const duration = Date.now() - startTime;
       console.log(`[WhatsApp Service] Ping to ${path} completed in ${duration}ms with status ${response.status}`);
+
+      if (path === '/status') {
+        if (response.ok) {
+          try {
+            const body = await response.json();
+            if (body && typeof body === 'object' && 'status' in body) {
+              const remoteStatus = body.status;
+              if (remoteStatus === 'connected') {
+                return {
+                  status: 'connected',
+                  message: body.message || 'Open WA service is online and WhatsApp is connected.',
+                  endpoint,
+                  details: {
+                    uptime: body.uptime || duration,
+                    version: 'wa-automate',
+                    platform: 'Render',
+                    config: getSafeConfigSummary(),
+                  },
+                };
+              } else if (remoteStatus === 'authenticating') {
+                return {
+                  status: 'waking_up',
+                  message: body.message || 'Waiting for WhatsApp authentication.',
+                  endpoint,
+                  details: {
+                    uptime: body.uptime || duration,
+                    version: 'wa-automate',
+                    platform: 'Render',
+                    config: getSafeConfigSummary(),
+                    error: body.error || undefined,
+                  },
+                };
+              } else {
+                return {
+                  status: 'unreachable',
+                  message: body.message || 'WhatsApp offline or initializing.',
+                  endpoint,
+                  details: {
+                    uptime: body.uptime || duration,
+                    version: 'wa-automate',
+                    platform: 'Render',
+                    config: getSafeConfigSummary(),
+                    error: body.error || undefined,
+                  },
+                };
+              }
+            }
+          } catch (jsonErr) {
+            console.warn('[WhatsApp Service] Failed to parse JSON from /status response:', jsonErr);
+          }
+        }
+        
+        if (response.status === 404) {
+          // If /status returned 404, it might be the old EASY API server, so we fall through to try other paths.
+          lastResponseStatus = response.status;
+          continue;
+        }
+        
+        lastResponseStatus = response.status;
+        continue;
+      }
 
       const contentType = response.headers.get('content-type') || '';
       let extraInfo: any = {};
@@ -128,6 +190,22 @@ export async function checkWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
       }
 
       if (isValidOpenWA) {
+        if (path === '/ping' && extraInfo && typeof extraInfo === 'object') {
+          if (extraInfo.status === 'initializing') {
+            return {
+              status: 'waking_up',
+              message: extraInfo.message || 'WhatsApp service is initializing.',
+              endpoint,
+              details: {
+                uptime: extraInfo.uptime || duration,
+                version: 'wa-automate',
+                platform: 'Render',
+                config: getSafeConfigSummary(),
+              },
+            };
+          }
+        }
+
         return {
           status: 'connected',
           message: 'Open WA service is online and reachable.',
